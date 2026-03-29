@@ -4148,9 +4148,8 @@ class Utility extends Model
 
                 } else {
 
-                    $max_size = !empty($settings['local_storage_max_upload_size']) ? $settings['local_storage_max_upload_size'] : '20480000000';
-
-                    $mimes = !empty($settings['local_storage_validation']) ? $settings['local_storage_validation'] : '';
+                    $max_size = !empty($settings['local_storage_max_upload_size']) ? $settings['local_storage_max_upload_size'] : '51200'; // Default 50MB
+                    $mimes = !empty($settings['local_storage_validation']) ? $settings['local_storage_validation'] : 'jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,csv,zip,txt';
                 }
 
                 $file = $request->$key_name;

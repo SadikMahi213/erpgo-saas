@@ -61,7 +61,9 @@ class DucumentUploadController extends Controller
         {
             $validator = \Validator::make(
                 $request->all(), [
-                                   'name' => 'required',
+                                   'name' => 'required|max:255',
+                                   'document' => 'required|file|mimes:jpeg,png,jpg,pdf,doc,docx,zip|max:10240',
+                                   'role' => 'required',
                                ]
             );
             if($validator->fails())
@@ -125,9 +127,16 @@ class DucumentUploadController extends Controller
     {
         if(\Auth::user()->can('edit document'))
         {
+            $document = DucumentUpload::find($id);
+            if (!$document || $document->created_by != \Auth::user()->creatorId()) {
+                return redirect()->back()->with('error', __('Permission denied.'));
+            }
+
             $validator = \Validator::make(
                 $request->all(), [
-                                   'name' => 'required',
+                                   'name' => 'required|max:255',
+                                   'document' => 'nullable|file|mimes:jpeg,png,jpg,pdf,doc,docx,zip|max:10240',
+                                   'role' => 'required',
                                ]
             );
             if($validator->fails())
@@ -136,7 +145,7 @@ class DucumentUploadController extends Controller
 
                 return redirect()->back()->with('error', $messages->first());
             }
-            $document = DucumentUpload::find($id);
+
             $document->name = $request->name;
             $document->role        = $request->role;
             $document->description = $request->description;

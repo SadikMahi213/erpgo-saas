@@ -17,9 +17,8 @@ class FilterRequest
         $input = $request->all();
         array_walk_recursive($input, function (&$value) {
             if (is_string($value)) {
-                $value = htmlspecialchars_decode($value);
-                $value = preg_replace('/<\s*script\b[^>]*>(.*?)<\s*\/\s*script\s*>/is', '', $value);
-                $value = str_replace(['&lt;', '&gt;', 'javascript','alert'], '', $value);
+                $value = strip_tags($value); // Global tag stripping
+                $value = preg_replace('/on[a-z]+\s*=\s*"[^"]*"|<[^>]+(on[a-z]+\s*=)/i', '', $value); // Remove event handlers
             }
         });
         $request->merge($input);

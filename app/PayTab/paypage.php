@@ -120,8 +120,7 @@ class paypage
             return Redirect::to($redirect_url);
         }
         else {
-            Log::channel('PayTabs')->info(json_encode($response));
-            print_r(json_encode($response));
+            Log::channel('PayTabs')->error('PayTabs Page Creation Failed: ' . json_encode($response));
         }
     }
 
@@ -149,8 +148,7 @@ class paypage
             }
             return response()->json(['status' => $status], 200);
         } else if ($pending_success) {
-            Log::channel('PayTabs')->info(json_encode($result));
-            print_r('some thing went wrong with integration' . $message);
+            Log::channel('PayTabs')->info('PayTabs Refund Pending: ' . json_encode($result));
         }
 
     }
@@ -178,8 +176,7 @@ class paypage
             }
             return response()->json(['status' => $status], 200);
         } else if ($pending_success) {
-            Log::channel('PayTabs')->info(json_encode($result));
-            print_r('some thing went wrong with integration' . $message);
+            Log::channel('PayTabs')->info('PayTabs Capture Pending: ' . json_encode($result));
         }
     }
 
@@ -206,8 +203,7 @@ class paypage
             }
             return response()->json(['status' => $status], 200);
         } else if ($pending_success) {
-            Log::channel('PayTabs')->info(json_encode($result));
-            print_r('some thing went wrong with integration' . $message);
+            Log::channel('PayTabs')->info('PayTabs Void Pending: ' . json_encode($result));
         }
     }
 

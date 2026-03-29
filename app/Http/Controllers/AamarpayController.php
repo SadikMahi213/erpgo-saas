@@ -43,6 +43,11 @@ class AamarpayController extends Controller
             // if (Auth::user()->phone == null) {
             //     return redirect()->back()->with('failed', __('Please add phone number to your profile.'));
             // }
+            $request->validate([
+                'plan_id' => 'required',
+                'amount' => 'required|numeric|min:0',
+            ]);
+
             try {
                 if (!empty($request->coupon)) {
                     $coupons = Coupon::where('code', strtoupper($request->coupon))->where('is_active', '1')->first();
@@ -64,7 +69,7 @@ class AamarpayController extends Controller
                                     try {
                                         $authuser->cancel_subscription($authuser->id);
                                     } catch (\Exception $exception) {
-                                        \Log::debug($exception->getMessage());
+                                        \Log::debug('Subscription cancel fail: ' . $exception->getMessage());
                                     }
                                 }
                                 $orderID = strtoupper(str_replace('.', '', uniqid('', true)));
@@ -76,11 +81,8 @@ class AamarpayController extends Controller
                                 Order::create(
                                     [
                                         'order_id' => $orderID,
-                                        'name' => null,
-                                        'email' => null,
-                                        'card_number' => null,
-                                        'card_exp_month' => null,
-                                        'card_exp_year' => null,
+                                        'name' => $authuser->name,
+                                        'email' => $authuser->email,
                                         'plan_name' => $plan->name,
                                         'plan_id' => $plan->id,
                                         'price' => $get_amount == null ? 0 : $get_amount,
@@ -88,11 +90,9 @@ class AamarpayController extends Controller
                                         'txn_id' => '',
                                         'payment_type' => 'Aamarpay',
                                         'payment_status' => 'success',
-                                        'receipt' => null,
                                         'user_id' => $authuser->id,
                                     ]
                                 );
-                                $assignPlan = $authuser->assignPlan($plan->id);
                                 return redirect()->route('plans.index')->with('success', __('Plan Successfully Activated'));
                             }
                         }
@@ -104,66 +104,47 @@ class AamarpayController extends Controller
                 $orderID = strtoupper(str_replace('.', '', uniqid('', true)));
                 $fields = array(
                     'store_id' => $aamarpay_store_id,
-                    //store id will be aamarpay,  contact integration@aamarpay.com for test/live id
                     'amount' => $get_amount,
-                    //transaction amount
                     'payment_type' => '',
-                    //no need to change
                     'currency' => $currency,
-                    //currenct will be USD/BDT
                     'tran_id' => $orderID,
-                    //transaction id must be unique from your end
                     'cus_name' => $authuser->name,
-                    //customer name
                     'cus_email' => $authuser->email,
-                    //customer email address
-                    'cus_add1' => '',
-                    //customer address
-                    'cus_add2' => '',
-                    //customer address
-                    'cus_city' => '',
-                    //customer city
-                    'cus_state' => '',
-                    //state
-                    'cus_postcode' => '',
-                    //postcode or zipcode
-                    'cus_country' => '',
-                    //country
-                    'cus_phone' => '1234567890',
-                    //customer phone number
+                    'cus_add1' => 'Dhaka',
+                    'cus_add2' => 'Dhaka',
+                    'cus_city' => 'Dhaka',
+                    'cus_state' => 'Dhaka',
+                    'cus_postcode' => '1000',
+                    'cus_country' => 'Bangladesh',
+                    'cus_phone' => $authuser->phone ?? '1234567890',
                     'success_url' => route('pay.aamarpay.success', Crypt::encrypt(['response'=>'success','coupon' => $coupon, 'plan_id' => $plan->id, 'price' => $get_amount, 'order_id' => $orderID])),
-                    //your success route
                     'fail_url' => route('pay.aamarpay.success', Crypt::encrypt(['response'=>'failure','coupon' => $coupon, 'plan_id' => $plan->id, 'price' => $get_amount, 'order_id' => $orderID])),
-                    //your fail route
                     'cancel_url' => route('pay.aamarpay.success', Crypt::encrypt(['response'=>'cancel'])),
-                    //your cancel url
                     'signature_key' => $aamarpay_signature_key,
                     'desc' => $aamarpay_description,
-                ); //signature key will provided aamarpay, contact integration@aamarpay.com for test/live signature key
+                ); 
 
 
                 $fields_string = http_build_query($fields);
 
                 $ch = curl_init();
-                curl_setopt($ch, CURLOPT_VERBOSE, true);
+                curl_setopt($ch, CURLOPT_VERBOSE, false); // Disabled verbose logging in production
                 curl_setopt($ch, CURLOPT_URL, $url);
 
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $fields_string);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true); // FIXED: Enabled SSL verification
                 $url_forward = str_replace('"', '', stripslashes(curl_exec($ch)));
                 curl_close($ch);
 
-                // $this->redirect_to_merchant($url_forward);
                 if($aamarpay_mode == 'sandbox'){
-                    header('Location: https://sandbox.aamarpay.com/' . $url_forward);
+                    return redirect('https://sandbox.aamarpay.com/' . $url_forward);
                 } else {
-                    header('Location: https://secure.aamarpay.com/' . $url_forward);
+                    return redirect('https://secure.aamarpay.com/' . $url_forward);
                 }
-                exit;
             } catch (\Exception $e) {
 
-                return redirect()->back()->with('error', $e);
+                return redirect()->back()->with('error', __('Payment failed.'));
             }
         } else {
             return redirect()->route('plans.index')->with('error', __('Plan is deleted.'));

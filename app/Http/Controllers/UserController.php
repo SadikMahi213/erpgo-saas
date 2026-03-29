@@ -372,6 +372,7 @@ class UserController extends Controller
             $request->all(), [
                 'name' => 'required|max:120',
                 'email' => 'required|email|unique:users,email,' . $userDetail['id'],
+                'profile' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // Validation added
             ]
         );
         if ($validator->fails()) {
@@ -646,13 +647,21 @@ class UserController extends Controller
         return redirect()->back()->with('success', 'User successfully deleted.');
     }
 
-    public function LoginWithCompany(Request $request, User $user, $id)
+    public function LoginWithCompany(Request $request, $id)
     {
+        // Fix: Only super admin can impersonate
+        if (\Auth::user()->type !== 'super admin') {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
         $user = User::find($id);
         if ($user && auth()->check()) {
             Impersonate::take($request->user(), $user);
+
             return redirect('/account-dashboard');
         }
+
+        return redirect()->back()->with('error', __('Something went wrong.'));
     }
 
     public function ExitCompany(Request $request)

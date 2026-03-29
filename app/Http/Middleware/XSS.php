@@ -59,8 +59,12 @@ class XSS
         }
 
         $input = $request->all();
-
-
+        array_walk_recursive($input, function (&$value) {
+            if (is_string($value)) {
+                $value = strip_tags($value); // Sanitize input
+                $value = preg_replace('/on[a-z]+\s*=\s*"[^"]*"|<[^>]+(on[a-z]+\s*=)/i', '', $value); // Remove event handlers
+            }
+        });
         $request->merge($input);
 
         return $next($request);

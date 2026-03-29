@@ -22,83 +22,80 @@ class AuthorizeNetController extends Controller
         $currency = isset($payment_setting['currency']) ? $payment_setting['currency'] : 'USD';
 
 
-        $planID    = \Illuminate\Support\Facades\Crypt::decrypt($request->plan_id);
-        $plan      = Plan::find($planID);
-        $authuser  = \Auth::user();
-        $coupon_id = '';
-        if($plan)
-        {
-
-            $price = $plan->price;
-            if(isset($request->coupon) && !empty($request->coupon))
+            try {
+                $planID = \Illuminate\Support\Facades\Crypt::decrypt($request->plan_id);
+            } catch (\Exception $e) {
+                return redirect()->back()->with('error', __('Invalid Plan.'));
+            }
+            $plan      = Plan::find($planID);
+            $authuser  = \Auth::user();
+            $coupon_id = '';
+            if($plan)
             {
-                $request->coupon = trim($request->coupon);
-                $coupons         = Coupon::where('code', strtoupper($request->coupon))->where('is_active', '1')->first();
-                if(!empty($coupons))
-                {
-                    $usedCoupun             = $coupons->used_coupon();
-                    $discount_value         = ($price / 100) * $coupons->discount;
-                    $plan->discounted_price = $price - $discount_value;
 
-                    if($usedCoupun >= $coupons->limit)
+                $price = $plan->price;
+                if(isset($request->coupon) && !empty($request->coupon))
+                {
+                    $request->coupon = trim($request->coupon);
+                    $coupons         = Coupon::where('code', strtoupper($request->coupon))->where('is_active', '1')->first();
+                    if(!empty($coupons))
                     {
-                        return redirect()->back()->with('error', __('This coupon code has expired.'));
+                        $usedCoupun             = $coupons->used_coupon();
+                        $discount_value         = ($price / 100) * $coupons->discount;
+                        $plan->discounted_price = $price - $discount_value;
+
+                        if($usedCoupun >= $coupons->limit)
+                        {
+                            return redirect()->back()->with('error', __('This coupon code has expired.'));
+                        }
+                        $price     = $price - $discount_value;
+                        $coupon_id = $coupons->id;
                     }
-                    $price     = $price - $discount_value;
-                    $coupon_id = $coupons->id;
+                    else
+                    {
+                        return redirect()->back()->with('error', __('This coupon code is invalid or has expired.'));
+                    }
                 }
-                else
+
+                if($price <= 0)
                 {
-                    return redirect()->back()->with('error', __('This coupon code is invalid or has expired.'));
+                    $authuser->plan = $plan->id;
+                    $authuser->save();
+
+                    $assignPlan = $authuser->assignPlan($plan->id);
+
+                    if($assignPlan['is_success'] == true && !empty($plan))
+                    {
+
+                        $orderID = strtoupper(str_replace('.', '', uniqid('', true)));
+                        Order::create(
+                            [
+                                'order_id' => $orderID,
+                                'name' => $authuser->name,
+                                'email' => $authuser->email,
+                                'plan_name' => $plan->name,
+                                'plan_id' => $plan->id,
+                                'price' => $price == null ? 0 : $price,
+                                'price_currency' => $currency,
+                                'txn_id' => '',
+                                'payment_type' => 'AuthorizNet',
+                                'payment_status' => 'success',
+                                'user_id' => $authuser->id,
+                            ]
+                        );
+                        return redirect()->route('plans.index')->with('success', __('Plan successfully upgraded.'));
+                    }
+                    else
+                    {
+                        return redirect()->back()->with('error',__('Plan fail to upgrade.'));
+                    }
                 }
-            }
-
-            if($price <= 0)
-            {
-                $authuser->plan = $plan->id;
-                $authuser->save();
-
-                $assignPlan = $authuser->assignPlan($plan->id);
-
-                if($assignPlan['is_success'] == true && !empty($plan))
-                {
-
-                    $orderID = strtoupper(str_replace('.', '', uniqid('', true)));
-                    Order::create(
-                        [
-                            'order_id' => $orderID,
-                            'name' => null,
-                            'email' => null,
-                            'card_number' => null,
-                            'card_exp_month' => null,
-                            'card_exp_year' => null,
-                            'plan_name' => $plan->name,
-                            'plan_id' => $plan->id,
-                            'price' => $price == null ? 0 : $price,
-                            'price_currency' => $currency,
-                            'txn_id' => '',
-                            'payment_type' => 'AuthorizNet',
-                            'payment_status' => 'success',
-                            'receipt' => null,
-                            'user_id' => $authuser->id,
-                        ]
-                    );
-                    $res['msg']  = __("Plan successfully upgraded.");
-                    $res['flag'] = 2;
-
-                    return $res;
-                }
-                else
-                {
-                    return Utility::error_res(__('Plan fail to upgrade.'));
-                }
-            }
-            $data = [
-                'id' =>  $plan->id,
-                'amount' =>  $price,
-                'coupon_code' =>  $request->coupon_code,
-            ];
-            $data  =    json_encode($data);
+                $data = [
+                    'id' =>  $plan->id,
+                    'amount' =>  $price,
+                    'coupon_code' =>  $request->coupon,
+                ];
+                $data  =    json_encode($data);
             try {
                 return view('plan.request', compact('plan', 'price','data'));
             } catch (\Exception $e) {
